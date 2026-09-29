@@ -1,0 +1,213 @@
+# obix-binding-cpp
+
+> Previous name: `@obinexusltd/obix-binding-cpp` — OBIX packages are named without an npm scope since decision D-102 (2026-09-29); the package, its version and its exports are unchanged.
+
+TypeScript bindings for OBIX C++ runtime integration through the native ABI bridge.
+
+## Overview
+
+`obix-binding-cpp` provides a modular bridge API for:
+
+- Creating and initializing a C++ binding configuration
+- Invoking ABI-backed polyglot functions with structured envelopes
+- Returning consistent typed invocation errors
+- Tracking heap allocation state across the binding lifecycle
+- Managing loaded shared libraries (`.so` / `.dll`) via a library registry
+- Resolving schema capabilities per `SchemaMode` (SWIG, RTTI, exception handling)
+
+## Installation
+
+```bash
+npm install obix-binding-cpp
+```
+
+## Usage
+
+```ts
+import { createCppBinding } from 'obix-binding-cpp';
+
+const binding = createCppBinding({
+  ffiPath: '/path/to/libnativebridge.so',
+  cppStandard: 'c++20',
+  schemaMode: 'hybrid',
+  memoryModel: 'manual',
+  compiler: 'clang',
+  swigEnabled: true,
+  rttEnabled: true,
+});
+
+await binding.initialize();
+
+// Invoke a polyglot function
+const result = await binding.invoke('renderFrame', [width, height]);
+console.log(result);
+
+// Load a shared library into the registry
+await binding.loadLibrary('/usr/lib/librenderer.so');
+console.log(binding.getLibraryStats());
+
+// Unload when done
+await binding.unloadLibrary('/usr/lib/librenderer.so');
+
+// Inspect heap usage
+const heap = binding.getMemoryUsage();
+console.log(heap.heapBytes, heap.peakHeapBytes);
+
+await binding.destroy();
+```
+
+## API
+
+### `createCppBinding(config: CppBindingConfig): CppBindingBridge`
+
+Creates a binding bridge with lifecycle and invocation methods.
+
+#### Lifecycle
+
+| Method | Description |
+|--------|-------------|
+| `initialize()` | Validates `ffiPath` and `schemaMode`, marks binding ready |
+| `invoke(fn, args)` | Invokes a polyglot function through the native ABI |
+| `destroy()` | Tears down all sub-modules and marks binding uninitialized |
+| `isInitialized()` | Returns whether the binding is ready |
+
+#### Memory
+
+| Method | Description |
+|--------|-------------|
+| `getMemoryUsage()` | Returns `CppHeapStats` snapshot |
+
+#### Library management
+
+| Method | Description |
+|--------|-------------|
+| `loadLibrary(path)` | Registers a shared library path (no-op if not initialized) |
+| `unloadLibrary(path)` | Removes a shared library path |
+| `getLibraryStats()` | Returns `LibraryRegistryStats` with load/unload counts |
+
+#### Sub-module accessors
+
+| Accessor | Type | Description |
+|----------|------|-------------|
+| `ffiTransport` | `FFITransportAPI` | Raw envelope builder and dispatcher |
+| `heapTracker` | `HeapTrackerAPI` | C++ heap allocation tracker |
+| `libraryRegistry` | `LibraryRegistryAPI` | Loaded shared library registry |
+| `schemaResolver` | `CppSchemaResolverAPI` | Schema mode resolver and validator |
+
+### `CppBindingConfig`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `ffiPath` | `string` | required | Path to the native bridge shared library |
+| `schemaMode` | `'monoglot' \| 'polyglot' \| 'hybrid'` | required | Polyglot interop mode |
+| `memoryModel` | `'gc' \| 'manual' \| 'hybrid'` | required | Memory management strategy |
+| `cppStandard` | `CppStandard` | `undefined` | C++ standard (`'c++11'`–`'c++23'`) |
+| `compiler` | `CppCompiler` | `undefined` | Compiler hint (`'gcc'`, `'clang'`, `'msvc'`) |
+| `swigEnabled` | `boolean` | `undefined` | Enable SWIG polyglot wrapping |
+| `smartPointerPolicy` | `string` | `undefined` | `'shared_ptr'`, `'unique_ptr'`, or `'raw'` |
+| `exceptionHandling` | `boolean` | `undefined` | C++ exception handling enabled |
+| `rttEnabled` | `boolean` | `undefined` | Runtime type information enabled |
+| `libRegistryMaxSize` | `number` | unlimited | Maximum registered library entries |
+
+## Error model
+
+Invocation errors are returned as typed objects (never thrown):
+
+| Code | Meaning |
+|------|---------|
+| `NOT_INITIALIZED` | `invoke` called before `initialize()` |
+| `MISSING_SYMBOL` | No `__obixAbiInvoker` registered, or function identifier missing |
+| `INVOCATION_FAILED` | The ABI invoker threw during dispatch |
+
+Each error includes the full `InvocationEnvelope` for debugging at ABI boundaries.
+
+## Schema capabilities by mode
+
+| Capability | `monoglot` | `hybrid` | `polyglot` |
+|-----------|-----------|---------|-----------|
+| `swigEnabled` | No | Yes | Yes |
+| `rttEnabled` | No | Yes | Yes |
+| `exceptionHandlingEnabled` | Yes | Yes | Yes |
+| `supportsMultiLanguage` | No | Yes | Yes |
+
+## Development
+
+```bash
+npm run build
+npm test
+```
+
+## Documentation
+
+In-depth guides live in [`docs/`](docs/):
+
+| # | Guide |
+|---|-------|
+| 01 | [Overview](docs/01-overview.md) |
+| 02 | [Installation and Setup](docs/02-installation-and-setup.md) |
+| 03 | [Binding Lifecycle and Configuration](docs/03-binding-lifecycle.md) |
+| 04 | [FFI Transport and the ABI Boundary](docs/04-ffi-transport-and-abi.md) |
+| 05 | [Schema Modes](docs/05-schema-modes.md) |
+| 06 | [Runtime Features](docs/06-runtime-features.md) |
+| 07 | [Best Practices](docs/07-best-practices.md) |
+
+---
+
+## License
+
+MIT
+
+<!-- obix-release:begin — generated by scripts/release/prepare.mjs; edit the text above this line -->
+
+## Installation
+
+```bash
+npm install obix-binding-cpp
+```
+
+> **Not yet on npm.** The OBIX packages are prepared for publication and are published only on the owner's authorisation; until then this is the command the published package will answer to.
+
+## API surface
+
+- `obix-binding-cpp` — 6 value exports: `createCppBinding`, `createFFITransport`, `createHeapTracker`, `createLibraryRegistry`, `createSchemaResolver`, `normalizeFunctionIdentifier`
+- Type declarations: `./dist/index.d.ts` (and a declaration next to every JS entry point).
+
+## Architecture role
+
+`obix-binding-cpp` is a **binding**: it connects OBIX to another syntax, paradigm or language.
+
+The architecture of OBIX — the package families and which packages are public API — is indexed in the umbrella: [docs/architecture.md](https://github.com/obinexus/obix/blob/main/docs/architecture.md).
+
+## Package relationships
+
+- Depends on (OBIX): no other OBIX package.
+- Used by (OBIX): no other OBIX package.
+
+## Testing
+
+- 5 test files ship in the npm package (`__tests__/`): they are the evidence of the package's contract, published so that its verification can be read — not runtime code (no entry point reaches them).
+- Run them with `npm test` (`vitest run`) in the OBIX monorepo, which provides the test tooling (Node's test runner, Vitest, TypeScript).
+
+## Documentation
+
+- [docs/01-overview.md](docs/01-overview.md)
+- [docs/02-installation-and-setup.md](docs/02-installation-and-setup.md)
+- [docs/03-binding-lifecycle.md](docs/03-binding-lifecycle.md)
+- [docs/04-ffi-transport-and-abi.md](docs/04-ffi-transport-and-abi.md)
+- [docs/05-schema-modes.md](docs/05-schema-modes.md)
+- [docs/06-runtime-features.md](docs/06-runtime-features.md)
+- [docs/07-best-practices.md](docs/07-best-practices.md)
+- [CHANGELOG.md](CHANGELOG.md)
+- The OBIX architecture index: [obix/docs/architecture.md](https://github.com/obinexus/obix/blob/main/docs/architecture.md)
+
+## Repository
+
+- https://github.com/obinexus/obix-binding-cpp — `git@github.com:obinexus/obix-binding-cpp.git`
+- Issues: https://github.com/obinexus/obix-binding-cpp/issues
+- The repository is a clean export of the package from the OBIX monorepo; its lineage (the monorepo commit it was exported from, the sources it was recovered from, earlier names) is in `PROVENANCE.json`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+<!-- obix-release:end -->
